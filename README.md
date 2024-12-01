@@ -1,6 +1,7 @@
 # Switchroom Manager
 
 A web application for managing and documenting switchroom locations and equipment. This application allows electricians to:
+
 - View an interactive map of the workplace
 - Draw and mark areas on the map
 - Attach photos and descriptions to specific locations
@@ -16,7 +17,7 @@ A web application for managing and documenting switchroom locations and equipmen
 
 ## Project Structure
 
-```
+```plaintext
 switchroom-manager/
 ├── frontend/          # React application
 ├── backend/          # Django application
@@ -28,20 +29,23 @@ switchroom-manager/
 ## Development Setup
 
 1. Clone the repository:
-```bash
-git clone [your-repository-url]
-cd switchroom-manager
-```
+
+    ```bash
+    git clone git@github.com:kyledenis/switchroom-manager.git
+    cd switchroom-manager
+    ```
 
 2. Start the development environment:
-```bash
-docker-compose up --build
-```
+
+    ```bash
+    docker-compose up --build
+    ```
 
 3. Access the applications:
-- Frontend: http://localhost:3000
-- Backend API: http://localhost:8000
-- Admin interface: http://localhost:8000/admin
+
+- Frontend: <http://localhost:3000>
+- Backend API: <http://localhost:8000>
+- Admin interface: <http://localhost:8000/admin>
 
 ## Features
 
