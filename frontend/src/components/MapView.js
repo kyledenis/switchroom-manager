@@ -5,6 +5,19 @@ import { toast } from "react-toastify";
 import { Easing, Tween, update } from "@tweenjs/tween.js";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import CircularProgress from '@mui/material/CircularProgress';
+import LocationOnIcon from "@mui/icons-material/LocationOn";
+import PolylineIcon from "@mui/icons-material/Polyline";
+import CropSquareIcon from "@mui/icons-material/CropSquare";
+import DeleteIcon from "@mui/icons-material/Delete";
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogActions from '@mui/material/DialogActions';
+import TextField from '@mui/material/TextField';
+import Button from '@mui/material/Button';
+import IconButton from '@mui/material/IconButton';
+import CloseIcon from '@mui/icons-material/Close';
+import axios from 'axios';
 
 const libraries = ["drawing"];
 
@@ -98,7 +111,7 @@ const ZoomControlPanel = styled.div`
     min-width: 300px;
 `;
 
-const Button = styled.button`
+const StyledMapButton = styled.button`
     background: rgba(255, 255, 255, 0.1);
     border: 1px solid rgba(255, 255, 255, 0.2);
     border-radius: 8px;
@@ -172,6 +185,146 @@ const LoadingText = styled.div`
     text-align: center;
 `;
 
+const DrawingControlPanel = styled.div`
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background: rgba(28, 28, 30, 0.8);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 12px;
+    color: white;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 200px;
+`;
+
+const DrawingButtonGroup = styled.div`
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+`;
+
+const StyledButton = styled.button`
+    background: ${props => props.active ? 'rgba(255, 255, 255, 0.2)' : 'rgba(255, 255, 255, 0.1)'};
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    color: white;
+    padding: 8px 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    justify-content: flex-start;
+
+    &:hover {
+        background: rgba(255, 255, 255, 0.2);
+    }
+
+    &:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    svg {
+        font-size: 16px;
+        opacity: ${props => props.active ? 1 : 0.7};
+    }
+`;
+
+const DrawingSubmenu = styled.div`
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-left: 12px;
+    padding-left: 12px;
+    border-left: 1px solid rgba(255, 255, 255, 0.1);
+`;
+
+const MapDetailsPanel = styled.div`
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(28, 28, 30, 0.8);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 12px 16px;
+    color: white;
+    z-index: 1000;
+    display: grid;
+    grid-template-columns: repeat(5, auto);
+    gap: 24px;
+    font-family: monospace;
+    font-size: 13px;
+`;
+
+const MapDetailItem = styled.div`
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+
+    span:first-of-type {
+        color: rgba(255, 255, 255, 0.5);
+        font-size: 11px;
+        text-transform: uppercase;
+    }
+
+    span:last-of-type {
+        color: rgba(255, 255, 255, 0.9);
+    }
+`;
+
+const ShapeDetailsModal = styled(Dialog)`
+    .MuiDialog-paper {
+        background: rgba(28, 28, 30, 0.95);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 16px;
+        color: white;
+        min-width: 400px;
+    }
+`;
+
+const ShapeDetailsTitle = styled(DialogTitle)`
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 24px;
+    background: rgba(255, 255, 255, 0.05);
+`;
+
+const ShapeDetailsContent = styled(DialogContent)`
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+`;
+
+const ImageUploadArea = styled.div`
+    border: 2px dashed rgba(255, 255, 255, 0.2);
+    border-radius: 12px;
+    padding: 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+
+    &:hover {
+        border-color: rgba(255, 255, 255, 0.3);
+        background: rgba(255, 255, 255, 0.05);
+    }
+`;
+
 const MapView = () => {
     const { isLoaded } = useLoadScript({
         googleMapsApiKey: process.env.REACT_APP_GOOGLE_MAPS_API_KEY,
@@ -181,6 +334,18 @@ const MapView = () => {
     const [map, setMap] = useState(null);
     const [isAnimating, setIsAnimating] = useState(false);
     const [displayState, setDisplayState] = useState(START_POSITION);
+    const [drawingManager, setDrawingManager] = useState(null);
+    const [activeDrawingMode, setActiveDrawingMode] = useState(null);
+    const [drawnShapes, setDrawnShapes] = useState([]);
+    const [selectedDrawingType, setSelectedDrawingType] = useState(null);
+    const [selectedShape, setSelectedShape] = useState(null);
+    const [shapeDetailsOpen, setShapeDetailsOpen] = useState(false);
+    const [selectedShapeDetails, setSelectedShapeDetails] = useState({
+        title: '',
+        description: '',
+        images: []
+    });
+    const fileInputRef = useRef(null);
 
     const isAnimatingRef = useRef(false);
     const hasAnimatedRef = useRef(false);
@@ -349,6 +514,64 @@ const MapView = () => {
             // Set initial position
             mapInstance.moveCamera(START_POSITION);
 
+            // Initialize Drawing Manager
+            const drawingManagerInstance = new window.google.maps.drawing.DrawingManager({
+                drawingMode: null,
+                drawingControl: false,
+                drawingControlOptions: {
+                    position: window.google.maps.ControlPosition.TOP_RIGHT,
+                    drawingModes: [
+                        window.google.maps.drawing.OverlayType.MARKER,
+                        window.google.maps.drawing.OverlayType.POLYGON,
+                    ],
+                },
+                markerOptions: {
+                    draggable: true,
+                },
+                polygonOptions: {
+                    fillColor: '#2196f3',
+                    fillOpacity: 0.3,
+                    strokeWeight: 2,
+                    clickable: true,
+                    editable: true,
+                    draggable: true,
+                    zIndex: 1,
+                },
+            });
+
+            drawingManagerInstance.setMap(mapInstance);
+            setDrawingManager(drawingManagerInstance);
+
+            // Add drawing complete listener
+            window.google.maps.event.addListener(drawingManagerInstance, 'overlaycomplete', (event) => {
+                // Disable drawing mode after shape is complete
+                drawingManagerInstance.setDrawingMode(null);
+                setActiveDrawingMode(null);
+
+                const shape = event.overlay;
+                setDrawnShapes(prev => [...prev, { type: event.type, shape }]);
+
+                // Add listeners for the new shape
+                if (event.type === window.google.maps.drawing.OverlayType.POLYGON) {
+                    // Add vertex listeners for editing
+                    const path = shape.getPath();
+                    window.google.maps.event.addListener(path, 'set_at', () => {
+                        // Handle polygon edit
+                        console.log('Polygon edited');
+                    });
+                    window.google.maps.event.addListener(path, 'insert_at', () => {
+                        // Handle polygon edit
+                        console.log('Polygon vertex added');
+                    });
+                }
+
+                // Add click listener for selection
+                window.google.maps.event.addListener(shape, 'click', () => {
+                    // Handle shape selection
+                    console.log('Shape clicked');
+                });
+            });
+
             // Clean up previous listeners
             mapListenersRef.current.forEach(listener => listener.remove());
             mapListenersRef.current = [];
@@ -365,6 +588,29 @@ const MapView = () => {
             updateDisplayState();
         }
     }, [updateDisplayState]);
+
+    const handleDrawingMode = (mode, type = null) => {
+        if (!drawingManager) return;
+
+        if (activeDrawingMode === mode && selectedDrawingType === type) {
+            // Turn off drawing mode
+            drawingManager.setDrawingMode(null);
+            setActiveDrawingMode(null);
+            setSelectedDrawingType(null);
+        } else {
+            // Set new drawing mode
+            drawingManager.setDrawingMode(mode);
+            setActiveDrawingMode(mode);
+            setSelectedDrawingType(type);
+        }
+    };
+
+    const clearDrawings = () => {
+        drawnShapes.forEach(({ shape }) => {
+            shape.setMap(null);
+        });
+        setDrawnShapes([]);
+    };
 
     // Auto-start animation effect
     useEffect(() => {
@@ -398,6 +644,191 @@ const MapView = () => {
         };
     }, []);
 
+    // Update map details on any map change
+    useEffect(() => {
+        if (!map) return;
+
+        const events = ['bounds_changed', 'tilt_changed', 'heading_changed', 'zoom_changed'];
+        const listeners = events.map(event =>
+            map.addListener(event, () => {
+                requestAnimationFrame(updateDisplayState);
+            })
+        );
+
+        return () => {
+            listeners.forEach(listener => listener.remove());
+        };
+    }, [map, updateDisplayState]);
+
+    useEffect(() => {
+        // Load saved shapes on mount
+        const loadSavedShapes = async () => {
+            try {
+                const response = await axios.get('http://localhost:8000/api/switchrooms/');
+                const savedShapes = response.data;
+
+                savedShapes.forEach(shapeData => {
+                    // Recreate the shape on the map
+                    if (map && shapeData.coordinates) {
+                        let shape;
+                        if (shapeData.area_type === 'POINT') {
+                            shape = new window.google.maps.Marker({
+                                position: {
+                                    lat: shapeData.coordinates[0],
+                                    lng: shapeData.coordinates[1]
+                                },
+                                map: map,
+                                draggable: true
+                            });
+                        } else if (shapeData.area_type === 'POLYGON') {
+                            const path = shapeData.coordinates.map(coord => ({
+                                lat: coord[0],
+                                lng: coord[1]
+                            }));
+                            shape = new window.google.maps.Polygon({
+                                paths: path,
+                                map: map,
+                                fillColor: '#2196f3',
+                                fillOpacity: 0.3,
+                                strokeWeight: 2,
+                                clickable: true,
+                                editable: true,
+                                draggable: true
+                            });
+                        }
+
+                        if (shape) {
+                            // Add click listener
+                            window.google.maps.event.addListener(shape, 'click', () => {
+                                setSelectedShape(shape);
+                                setSelectedShapeDetails({
+                                    id: shapeData.id,
+                                    title: shapeData.name,
+                                    description: shapeData.description,
+                                    images: shapeData.photos || []
+                                });
+                                setShapeDetailsOpen(true);
+                            });
+
+                            // Store the shape with its database ID
+                            setDrawnShapes(prev => [...prev, {
+                                id: shapeData.id,
+                                type: shapeData.area_type,
+                                shape,
+                                details: {
+                                    title: shapeData.name,
+                                    description: shapeData.description,
+                                    images: shapeData.photos || []
+                                }
+                            }]);
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error('Error loading saved shapes:', error);
+                toast.error('Failed to load saved areas');
+            }
+        };
+
+        if (map) {
+            loadSavedShapes();
+        }
+    }, [map]);
+
+    const handleShapeComplete = async (event) => {
+        const shape = event.overlay;
+        drawingManager.setDrawingMode(null);
+        setActiveDrawingMode(null);
+
+        setSelectedShape(shape);
+        setSelectedShapeDetails({
+            title: '',
+            description: '',
+            images: []
+        });
+        setShapeDetailsOpen(true);
+    };
+
+    const handleSaveShapeDetails = async () => {
+        try {
+            const shapeData = {
+                name: selectedShapeDetails.title,
+                description: selectedShapeDetails.description,
+                area_type: selectedShape instanceof window.google.maps.Marker ? 'POINT' : 'POLYGON',
+                coordinates: getShapeCoordinates(selectedShape)
+            };
+
+            // Create FormData for image upload
+            const formData = new FormData();
+            Object.keys(shapeData).forEach(key => {
+                formData.append(key,
+                    key === 'coordinates' ? JSON.stringify(shapeData[key]) : shapeData[key]
+                );
+            });
+
+            // Append images if any
+            selectedShapeDetails.images.forEach(image => {
+                if (image instanceof File) {
+                    formData.append('photos', image);
+                }
+            });
+
+            let response;
+            if (selectedShapeDetails.id) {
+                // Update existing shape
+                response = await axios.put(
+                    `http://localhost:8000/api/switchrooms/${selectedShapeDetails.id}/`,
+                    formData
+                );
+            } else {
+                // Create new shape
+                response = await axios.post('http://localhost:8000/api/switchrooms/', formData);
+            }
+
+            // Update local state
+            const updatedShape = {
+                id: response.data.id,
+                type: shapeData.area_type,
+                shape: selectedShape,
+                details: {
+                    title: response.data.name,
+                    description: response.data.description,
+                    images: response.data.photos || []
+                }
+            };
+
+            setDrawnShapes(prev => {
+                const filtered = prev.filter(s => s.shape !== selectedShape);
+                return [...filtered, updatedShape];
+            });
+
+            setShapeDetailsOpen(false);
+            toast.success('Area saved successfully');
+        } catch (error) {
+            console.error('Error saving shape:', error);
+            toast.error('Failed to save area');
+        }
+    };
+
+    const getShapeCoordinates = (shape) => {
+        if (shape instanceof window.google.maps.Marker) {
+            const position = shape.getPosition();
+            return [position.lat(), position.lng()];
+        } else if (shape instanceof window.google.maps.Polygon) {
+            const path = shape.getPath();
+            return path.getArray().map(latLng => [latLng.lat(), latLng.lng()]);
+        }
+        return null;
+    };
+
+    const handleImageUpload = (event) => {
+        const files = Array.from(event.target.files);
+        setSelectedShapeDetails(prev => ({
+            ...prev,
+            images: [...prev.images, ...files]
+        }));
+    };
+
     if (!isLoaded) {
         return (
             <LoadingOverlay>
@@ -421,22 +852,132 @@ const MapView = () => {
                 />
             </MapContainer>
 
-            <ZoomControlPanel>
-                <CoordinatesDisplay>
-                    Lat: {displayState?.center?.lat?.toFixed(6) ?? '0.000000'}°
-                    <br />
-                    Lng: {displayState?.center?.lng?.toFixed(6) ?? '0.000000'}°
-                    <br />
-                    Zoom: {displayState?.zoom?.toFixed(1) ?? '0.0'}
-                    <br />
-                    Tilt: {displayState?.tilt?.toFixed(1) ?? '0.0'}°
-                    <br />
-                    Heading: {displayState?.heading?.toFixed(1) ?? '0.0'}°
-                    <RefreshButton onClick={handleRefresh}>
-                        <RefreshIcon />
-                    </RefreshButton>
-                </CoordinatesDisplay>
-            </ZoomControlPanel>
+            <DrawingControlPanel>
+                <DrawingButtonGroup>
+                    <StyledButton
+                        active={activeDrawingMode === window.google.maps.drawing.OverlayType.MARKER}
+                        onClick={() => handleDrawingMode(window.google.maps.drawing.OverlayType.MARKER)}
+                        disabled={isAnimating}
+                    >
+                        <LocationOnIcon /> Add Marker
+                    </StyledButton>
+
+                    <StyledButton
+                        active={activeDrawingMode === window.google.maps.drawing.OverlayType.POLYGON}
+                        onClick={() => handleDrawingMode(window.google.maps.drawing.OverlayType.POLYGON)}
+                        disabled={isAnimating}
+                    >
+                        <PolylineIcon /> Draw Area
+                    </StyledButton>
+
+                    {activeDrawingMode === window.google.maps.drawing.OverlayType.POLYGON && (
+                        <DrawingSubmenu>
+                            <StyledButton
+                                active={selectedDrawingType === 'polygon'}
+                                onClick={() => handleDrawingMode(window.google.maps.drawing.OverlayType.POLYGON, 'polygon')}
+                            >
+                                <PolylineIcon /> Polygon
+                            </StyledButton>
+                            <StyledButton
+                                active={selectedDrawingType === 'rectangle'}
+                                onClick={() => handleDrawingMode(window.google.maps.drawing.OverlayType.RECTANGLE, 'rectangle')}
+                            >
+                                <CropSquareIcon /> Rectangle
+                            </StyledButton>
+                        </DrawingSubmenu>
+                    )}
+
+                    <StyledButton
+                        onClick={clearDrawings}
+                        disabled={isAnimating || drawnShapes.length === 0}
+                    >
+                        <DeleteIcon /> Clear All
+                    </StyledButton>
+                </DrawingButtonGroup>
+            </DrawingControlPanel>
+
+            <MapDetailsPanel>
+                <MapDetailItem>
+                    <span>Latitude</span>
+                    <span>{displayState?.center?.lat?.toFixed(6) ?? '0.000000'}°</span>
+                </MapDetailItem>
+                <MapDetailItem>
+                    <span>Longitude</span>
+                    <span>{displayState?.center?.lng?.toFixed(6) ?? '0.000000'}°</span>
+                </MapDetailItem>
+                <MapDetailItem>
+                    <span>Zoom</span>
+                    <span>{displayState?.zoom?.toFixed(1) ?? '0.0'}</span>
+                </MapDetailItem>
+                <MapDetailItem>
+                    <span>Tilt</span>
+                    <span>{displayState?.tilt?.toFixed(1) ?? '0.0'}°</span>
+                </MapDetailItem>
+                <MapDetailItem>
+                    <span>Heading</span>
+                    <span>{displayState?.heading?.toFixed(1) ?? '0.0'}°</span>
+                </MapDetailItem>
+            </MapDetailsPanel>
+
+            <ShapeDetailsModal
+                open={shapeDetailsOpen}
+                onClose={() => setShapeDetailsOpen(false)}
+            >
+                <ShapeDetailsTitle>
+                    <span>Area Details</span>
+                    <IconButton
+                        edge="end"
+                        color="inherit"
+                        onClick={() => setShapeDetailsOpen(false)}
+                    >
+                        <CloseIcon />
+                    </IconButton>
+                </ShapeDetailsTitle>
+                <ShapeDetailsContent>
+                    <TextField
+                        label="Title"
+                        value={selectedShapeDetails.title}
+                        onChange={(e) => setSelectedShapeDetails(prev => ({
+                            ...prev,
+                            title: e.target.value
+                        }))}
+                        fullWidth
+                        variant="outlined"
+                    />
+                    <TextField
+                        label="Description"
+                        value={selectedShapeDetails.description}
+                        onChange={(e) => setSelectedShapeDetails(prev => ({
+                            ...prev,
+                            description: e.target.value
+                        }))}
+                        fullWidth
+                        multiline
+                        rows={4}
+                        variant="outlined"
+                    />
+                    <ImageUploadArea onClick={() => fileInputRef.current?.click()}>
+                        <input
+                            type="file"
+                            ref={fileInputRef}
+                            style={{ display: 'none' }}
+                            multiple
+                            accept="image/*"
+                            onChange={handleImageUpload}
+                        />
+                        <p>Click to upload images</p>
+                        {selectedShapeDetails.images.length > 0 && (
+                            <p>{selectedShapeDetails.images.length} image(s) selected</p>
+                        )}
+                    </ImageUploadArea>
+                </ShapeDetailsContent>
+                <DialogActions>
+                    <Button onClick={() => setShapeDetailsOpen(false)}>Cancel</Button>
+                    <Button onClick={handleSaveShapeDetails} variant="contained">
+                        Save
+                    </Button>
+                </DialogActions>
+            </ShapeDetailsModal>
         </Container>
     );
 };
