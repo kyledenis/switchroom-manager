@@ -945,7 +945,7 @@ const MapView = () => {
         const loadSavedShapes = async () => {
             try {
                 const response = await axios.get(
-                    "http://localhost:8000/api/switchrooms/",
+                    "http://localhost:8000/api/switchrooms/", // TODO: change when deployed
                 );
                 const savedShapes = response.data;
 
@@ -1214,14 +1214,21 @@ const MapView = () => {
         }
     }, [location.state, map, drawnShapes]);
 
+    // Counterclockwise rotation
     const handleRotateLeft = useCallback(() => {
         if (!map) return;
-        map.setHeading((map.getHeading() || 0) - 45);
+        const currentHeading = map.getHeading() || 0;
+        // Add 360 before subtracting to ensure we stay in positive range
+        const newHeading = ((currentHeading + 360 - 90) % 360);
+        map.setHeading(newHeading);
     }, [map]);
 
+    // Clockwise rotation
     const handleRotateRight = useCallback(() => {
         if (!map) return;
-        map.setHeading((map.getHeading() || 0) + 45);
+        const currentHeading = map.getHeading() || 0;
+        const newHeading = (currentHeading + 90) % 360;
+        map.setHeading(newHeading);
     }, [map]);
 
     if (!isLoaded) {
