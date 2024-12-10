@@ -1,24 +1,32 @@
 import React, { useEffect, useState, useRef } from 'react';
 import styled from 'styled-components';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { useLoadScript } from '@react-google-maps/api';
 import axios from 'axios';
 import CircularProgress from '@mui/material/CircularProgress';
+import { motion } from 'framer-motion';
+import DeleteIcon from '@mui/icons-material/Delete';
+import Dialog from '@mui/material/Dialog';
+import DialogActions from '@mui/material/DialogActions';
+import DialogContent from '@mui/material/DialogContent';
+import DialogContentText from '@mui/material/DialogContentText';
+import DialogTitle from '@mui/material/DialogTitle';
+import Button from '@mui/material/Button';
 
 const ListContainer = styled.div`
     max-width: 1200px;
-    margin: 0 16px;
-    padding: 0;
+    margin: 0 auto;
+    padding: 24px;
 `;
 
-const SwitchroomCard = styled.div`
+const SwitchroomCard = styled(motion.div)`
     background: rgba(28, 28, 30, 0.8);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 16px;
     margin-bottom: 16px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
     display: flex;
     overflow: hidden;
     cursor: pointer;
@@ -26,6 +34,7 @@ const SwitchroomCard = styled.div`
 
     &:hover {
         background: rgba(255, 255, 255, 0.05);
+        transform: translateY(-2px);
     }
 
     @media (max-width: 768px) {
@@ -203,6 +212,81 @@ const ErrorContainer = styled(LoadingContainer)`
     color: #ff453a;
 `;
 
+const CardActions = styled.div`
+    display: flex;
+    gap: 8px;
+    margin-top: 16px;
+`;
+
+const ActionButton = styled.button`
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    color: white;
+    padding: 8px 16px;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+
+    &:hover {
+        background: rgba(255, 255, 255, 0.2);
+    }
+
+    &.delete {
+        color: #ff453a;
+        border-color: rgba(255, 69, 58, 0.2);
+        background: rgba(255, 69, 58, 0.1);
+
+        &:hover {
+            background: rgba(255, 69, 58, 0.2);
+        }
+    }
+`;
+
+const StyledDialog = styled(Dialog)`
+    .MuiDialog-paper {
+        background: rgba(28, 28, 30, 0.95);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 16px;
+        color: white;
+        min-width: 400px;
+    }
+
+    .MuiDialogTitle-root {
+        background: rgba(255, 255, 255, 0.05);
+    }
+
+    .MuiDialogContent-root {
+        padding: 24px;
+    }
+
+    .MuiDialogActions-root {
+        padding: 16px 24px;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .MuiButton-root {
+        border-radius: 8px;
+        text-transform: none;
+        padding: 6px 16px;
+        font-size: 14px;
+
+        &.delete {
+            background: #ff453a;
+            color: white;
+
+            &:hover {
+                background: #ff3b2f;
+            }
+        }
+    }
+`;
+
 const libraries = ['places'];
 
 function SwitchroomList() {
@@ -217,6 +301,9 @@ function SwitchroomList() {
     const [selectedPhoto, setSelectedPhoto] = useState(null);
     const miniMapRefs = useRef(new Map());
     const navigate = useNavigate();
+    const location = useLocation();
+    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+    const [areaToDelete, setAreaToDelete] = useState(null);
 
     useEffect(() => {
         if (isLoaded) {
@@ -289,7 +376,12 @@ function SwitchroomList() {
     }, [areas, isLoaded]);
 
     const handleCardClick = (area) => {
-        navigate('/', { state: { selectedArea: area } });
+        navigate('/', {
+            state: {
+                selectedArea: area,
+                fromList: true
+            }
+        });
     };
 
     const getFullImageUrl = (photo) => {
@@ -297,6 +389,28 @@ function SwitchroomList() {
         const imageUrl = photo.image;
         if (imageUrl.startsWith('http')) return imageUrl;
         return `http://localhost:8000${imageUrl}`;
+    };
+
+    const handleDeleteClick = (e, area) => {
+        e.stopPropagation();
+        setAreaToDelete(area);
+        setDeleteDialogOpen(true);
+    };
+
+    const handleDeleteConfirm = async () => {
+        if (!areaToDelete) return;
+
+        try {
+            await axios.delete(`/api/areas/${areaToDelete.id}/`);
+            toast.success('Area deleted successfully');
+            setAreas(areas.filter(area => area.id !== areaToDelete.id));
+        } catch (error) {
+            console.error('Error deleting area:', error);
+            toast.error('Failed to delete area');
+        }
+
+        setDeleteDialogOpen(false);
+        setAreaToDelete(null);
     };
 
     if (loadError) {
@@ -346,34 +460,68 @@ function SwitchroomList() {
     return (
         <ListContainer>
             {areas.map(area => (
-                <SwitchroomCard key={area.id} onClick={() => handleCardClick(area)}>
+                <SwitchroomCard
+                    key={area.id}
+                    onClick={() => handleCardClick(area)}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3 }}
+                >
                     <MiniMapContainer id={`mini-map-${area.id}`} />
                     <ContentContainer>
                         <Title>{area.name}</Title>
                         <Description>{area.description}</Description>
-                        <PhotosContainer>
-                            {area.photos.map((photo, index) => (
-                                <PhotoThumbnail
-                                    key={photo.id || index}
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        setSelectedPhoto(getFullImageUrl(photo));
-                                    }}
-                                >
-                                    <img
-                                        src={getFullImageUrl(photo)}
-                                        alt={`${area.name} - Photo ${index + 1}`}
-                                        onError={(e) => {
-                                            console.error('Error loading image:', photo);
-                                            e.target.src = 'https://via.placeholder.com/80?text=Error';
+                        {area.photos && area.photos.length > 0 && (
+                            <PhotosContainer>
+                                {area.photos.map((photo, index) => (
+                                    <PhotoThumbnail
+                                        key={photo.id || index}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setSelectedPhoto(getFullImageUrl(photo));
                                         }}
-                                    />
-                                </PhotoThumbnail>
-                            ))}
-                        </PhotosContainer>
+                                    >
+                                        <img
+                                            src={getFullImageUrl(photo)}
+                                            alt={`${area.name} - Photo ${index + 1}`}
+                                            onError={(e) => {
+                                                console.error('Error loading image:', photo);
+                                                e.target.src = 'https://via.placeholder.com/100?text=Error';
+                                            }}
+                                        />
+                                    </PhotoThumbnail>
+                                ))}
+                            </PhotosContainer>
+                        )}
+                        <CardActions>
+                            <ActionButton onClick={(e) => handleDeleteClick(e, area)} className="delete">
+                                <DeleteIcon /> Delete Area
+                            </ActionButton>
+                        </CardActions>
                     </ContentContainer>
                 </SwitchroomCard>
             ))}
+
+            <StyledDialog
+                open={deleteDialogOpen}
+                onClose={() => setDeleteDialogOpen(false)}
+            >
+                <DialogTitle>Delete Area</DialogTitle>
+                <DialogContent>
+                    <DialogContentText style={{ color: 'rgba(255, 255, 255, 0.8)' }}>
+                        Are you sure you want to delete this area? This action cannot be undone.
+                    </DialogContentText>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setDeleteDialogOpen(false)}>
+                        Cancel
+                    </Button>
+                    <Button onClick={handleDeleteConfirm} className="delete">
+                        Delete
+                    </Button>
+                </DialogActions>
+            </StyledDialog>
+
             {selectedPhoto && (
                 <PhotoModal onClick={() => setSelectedPhoto(null)}>
                     <ModalContent>
