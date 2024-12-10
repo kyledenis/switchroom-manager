@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { useLoadScript } from '@react-google-maps/api';
 import axios from 'axios';
+import CircularProgress from '@mui/material/CircularProgress';
 
 const ListContainer = styled.div`
     max-width: 1200px;
@@ -183,17 +184,19 @@ const ModalContent = styled.div`
 
 const LoadingContainer = styled.div`
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
-    height: 200px;
-    background: rgba(28, 28, 30, 0.8);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border-radius: 16px;
-    margin: 24px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    height: calc(100vh - 120px);
+    gap: 24px;
     color: #ffffff;
+`;
+
+const LoadingText = styled.div`
+    font-size: 16px;
     font-weight: 500;
+    color: rgba(255, 255, 255, 0.8);
+    text-align: center;
 `;
 
 const ErrorContainer = styled(LoadingContainer)`
@@ -297,19 +300,47 @@ function SwitchroomList() {
     };
 
     if (loadError) {
-        return <div>Error loading maps</div>;
+        return (
+            <ErrorContainer>
+                <div>Error loading maps</div>
+                <div style={{ fontSize: '14px', opacity: 0.7 }}>Please check your internet connection and try again</div>
+            </ErrorContainer>
+        );
     }
 
     if (!isLoaded) {
-        return <div>Loading maps...</div>;
+        return (
+            <LoadingContainer>
+                <CircularProgress size={48} color="inherit" />
+                <LoadingText>
+                    Loading maps...
+                    <br />
+                    <span style={{ fontSize: '14px', opacity: 0.7 }}>This may take a few moments</span>
+                </LoadingText>
+            </LoadingContainer>
+        );
     }
 
     if (loading) {
-        return <div>Loading switchrooms...</div>;
+        return (
+            <LoadingContainer>
+                <CircularProgress size={48} color="inherit" />
+                <LoadingText>
+                    Loading switchrooms...
+                    <br />
+                    <span style={{ fontSize: '14px', opacity: 0.7 }}>Fetching data from server</span>
+                </LoadingText>
+            </LoadingContainer>
+        );
     }
 
     if (error) {
-        return <div>{error}</div>;
+        return (
+            <ErrorContainer>
+                <div>{error}</div>
+                <div style={{ fontSize: '14px', opacity: 0.7 }}>Please try again later</div>
+            </ErrorContainer>
+        );
     }
 
     return (

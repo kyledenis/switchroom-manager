@@ -194,13 +194,13 @@ const DrawingControlPanel = styled.div`
     -webkit-backdrop-filter: blur(20px);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 12px;
-    padding: 12px;
+    padding: 16px;
     color: white;
     z-index: 1000;
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    min-width: 200px;
+    gap: 12px;
+    min-width: 220px;
 `;
 
 const DrawingButtonGroup = styled.div`
@@ -325,6 +325,17 @@ const ImageUploadArea = styled.div`
     }
 `;
 
+const defaultShapeOptions = {
+    fillColor: '#2196f3',
+    fillOpacity: 0.3,
+    strokeColor: '#000000',
+    strokeWeight: 2,
+    clickable: true,
+    editable: true,
+    draggable: true,
+    geodesic: true,
+};
+
 const MapView = () => {
     const { isLoaded } = useLoadScript({
         googleMapsApiKey: process.env.REACT_APP_GOOGLE_MAPS_API_KEY,
@@ -338,7 +349,7 @@ const MapView = () => {
     const [activeDrawingMode, setActiveDrawingMode] = useState(null);
     const [drawnShapes, setDrawnShapes] = useState([]);
     const [selectedDrawingType, setSelectedDrawingType] = useState(null);
-    const [selectedShape, setSelectedShape] = useState(null);
+    const [selectedDrawing, setSelectedDrawing] = useState(null);
     const [shapeDetailsOpen, setShapeDetailsOpen] = useState(false);
     const [selectedShapeDetails, setSelectedShapeDetails] = useState({
         title: '',
@@ -353,6 +364,10 @@ const MapView = () => {
     const cameraOptions = useRef({ ...START_POSITION });
     const updateTimeoutRef = useRef(null);
     const mapListenersRef = useRef([]);
+
+    const [hasAnimatedGlobally, setHasAnimatedGlobally] = useState(() => {
+        return localStorage.getItem('hasPlayedAnimation') === 'true';
+    });
 
     const mapOptions = {
         mapTypeId: 'hybrid',
@@ -391,17 +406,20 @@ const MapView = () => {
     const updateDisplayState = useCallback(() => {
         if (!map || isAnimatingRef.current) return;
 
-        // Clear any pending updates
-        if (updateTimeoutRef.current) {
-            clearTimeout(updateTimeoutRef.current);
-        }
+        const center = map.getCenter();
+        if (center) {
+            // Clear any pending updates
+            if (updateTimeoutRef.current) {
+                clearTimeout(updateTimeoutRef.current);
+            }
 
-        // Debounce the update
-        updateTimeoutRef.current = setTimeout(() => {
-            const center = map.getCenter();
-            if (center) {
+            // Debounce the update
+            updateTimeoutRef.current = setTimeout(() => {
                 const newState = {
-                    center: { lat: center.lat(), lng: center.lng() },
+                    center: {
+                        lat: center.lat(),
+                        lng: center.lng()
+                    },
                     zoom: map.getZoom(),
                     tilt: map.getTilt(),
                     heading: map.getHeading()
@@ -413,8 +431,8 @@ const MapView = () => {
                     }
                     return prev;
                 });
-            }
-        }, 100);
+            }, 100);
+        }
     }, [map]);
 
     const animate = useCallback((time) => {
@@ -423,11 +441,11 @@ const MapView = () => {
     }, []);
 
     const startAnimation = useCallback(() => {
-        if (!map || isAnimatingRef.current || hasAnimatedRef.current) {
+        if (!map || isAnimatingRef.current || hasAnimatedGlobally) {
             console.log('Animation blocked:', {
                 map: !!map,
                 isAnimating: isAnimatingRef.current,
-                hasAnimated: hasAnimatedRef.current
+                hasAnimated: hasAnimatedGlobally
             });
             return;
         }
@@ -484,8 +502,9 @@ const MapView = () => {
                 .onComplete(() => {
                     console.log('Animation complete');
                     isAnimatingRef.current = false;
-                    hasAnimatedRef.current = true;
                     setIsAnimating(false);
+                    setHasAnimatedGlobally(true);
+                    localStorage.setItem('hasPlayedAnimation', 'true');
                     updateDisplayState();
                 });
 
@@ -504,38 +523,43 @@ const MapView = () => {
             isAnimatingRef.current = false;
             setIsAnimating(false);
         }
-    }, [map, isAnimating, animate, updateDisplayState]);
+    }, [map, isAnimating, animate, updateDisplayState, hasAnimatedGlobally]);
 
     const onMainMapLoad = useCallback((mapInstance) => {
         console.log('Map loaded');
         setMap(mapInstance);
 
         if (mapInstance) {
-            // Set initial position
-            mapInstance.moveCamera(START_POSITION);
+            // Try to restore previous state
+            const savedState = localStorage.getItem('lastMapState');
+            if (savedState && hasAnimatedGlobally) {
+                try {
+                    const state = JSON.parse(savedState);
+                    if (state && state.center && typeof state.center.lat === 'number') {
+                        mapInstance.moveCamera(state);
+                    } else {
+                        mapInstance.moveCamera(START_POSITION);
+                    }
+                } catch (error) {
+                    console.error('Error restoring map state:', error);
+                    mapInstance.moveCamera(START_POSITION);
+                }
+            } else {
+                mapInstance.moveCamera(START_POSITION);
+            }
 
-            // Initialize Drawing Manager
+            // Initialize Drawing Manager with consistent styling
             const drawingManagerInstance = new window.google.maps.drawing.DrawingManager({
                 drawingMode: null,
                 drawingControl: false,
-                drawingControlOptions: {
-                    position: window.google.maps.ControlPosition.TOP_RIGHT,
-                    drawingModes: [
-                        window.google.maps.drawing.OverlayType.MARKER,
-                        window.google.maps.drawing.OverlayType.POLYGON,
-                    ],
-                },
                 markerOptions: {
+                    ...defaultShapeOptions,
                     draggable: true,
                 },
-                polygonOptions: {
-                    fillColor: '#2196f3',
-                    fillOpacity: 0.3,
-                    strokeWeight: 2,
-                    clickable: true,
+                polygonOptions: defaultShapeOptions,
+                rectangleOptions: {
+                    ...defaultShapeOptions,
                     editable: true,
-                    draggable: true,
-                    zIndex: 1,
                 },
             });
 
@@ -544,50 +568,101 @@ const MapView = () => {
 
             // Add drawing complete listener
             window.google.maps.event.addListener(drawingManagerInstance, 'overlaycomplete', (event) => {
-                // Disable drawing mode after shape is complete
                 drawingManagerInstance.setDrawingMode(null);
                 setActiveDrawingMode(null);
 
                 const shape = event.overlay;
-                setDrawnShapes(prev => [...prev, { type: event.type, shape }]);
 
-                // Add listeners for the new shape
-                if (event.type === window.google.maps.drawing.OverlayType.POLYGON) {
-                    // Add vertex listeners for editing
-                    const path = shape.getPath();
-                    window.google.maps.event.addListener(path, 'set_at', () => {
-                        // Handle polygon edit
-                        console.log('Polygon edited');
+                // Convert rectangle to polygon for consistency
+                if (event.type === window.google.maps.drawing.OverlayType.RECTANGLE) {
+                    const bounds = shape.getBounds();
+                    const ne = bounds.getNorthEast();
+                    const sw = bounds.getSouthWest();
+                    const nw = new window.google.maps.LatLng(ne.lat(), sw.lng());
+                    const se = new window.google.maps.LatLng(sw.lat(), ne.lng());
+
+                    // Create polygon from rectangle corners
+                    const polygonShape = new window.google.maps.Polygon({
+                        ...defaultShapeOptions,
+                        paths: [ne, se, sw, nw],
+                        map: mapInstance
                     });
-                    window.google.maps.event.addListener(path, 'insert_at', () => {
-                        // Handle polygon edit
-                        console.log('Polygon vertex added');
-                    });
+
+                    // Remove the rectangle
+                    shape.setMap(null);
+
+                    // Use the polygon instead
+                    setDrawnShapes(prev => [...prev, { type: 'POLYGON', shape: polygonShape }]);
+                    addShapeListeners(polygonShape);
+                } else {
+                    setDrawnShapes(prev => [...prev, { type: event.type, shape }]);
+                    addShapeListeners(shape);
                 }
-
-                // Add click listener for selection
-                window.google.maps.event.addListener(shape, 'click', () => {
-                    // Handle shape selection
-                    console.log('Shape clicked');
-                });
             });
-
-            // Clean up previous listeners
-            mapListenersRef.current.forEach(listener => listener.remove());
-            mapListenersRef.current = [];
-
-            // Add new listeners
-            const addListener = (event) => {
-                const listener = mapInstance.addListener(event, updateDisplayState);
-                mapListenersRef.current.push(listener);
-            };
-
-            ['idle', 'tilt_changed', 'heading_changed'].forEach(addListener);
 
             // Initial state update
             updateDisplayState();
         }
-    }, [updateDisplayState]);
+    }, [hasAnimatedGlobally]);
+
+    const addShapeListeners = (shape) => {
+        // Click listener for selection
+        window.google.maps.event.addListener(shape, 'click', () => {
+            setSelectedDrawing(shape);
+            // Highlight selected shape
+            if (shape instanceof window.google.maps.Polygon) {
+                shape.setOptions({
+                    strokeWeight: 3,
+                    strokeColor: '#4CAF50'
+                });
+            }
+        });
+
+        // Add edit listeners for polygons
+        if (shape instanceof window.google.maps.Polygon) {
+            const path = shape.getPath();
+            window.google.maps.event.addListener(path, 'set_at', updateDisplayState);
+            window.google.maps.event.addListener(path, 'insert_at', updateDisplayState);
+            window.google.maps.event.addListener(path, 'remove_at', updateDisplayState);
+        }
+
+        // Add drag listeners
+        window.google.maps.event.addListener(shape, 'dragstart', () => {
+            setSelectedDrawing(shape);
+        });
+        window.google.maps.event.addListener(shape, 'dragend', updateDisplayState);
+    };
+
+    const handleDeleteSelected = () => {
+        if (selectedDrawing) {
+            // Remove the shape from the map
+            selectedDrawing.setMap(null);
+            // Remove from drawn shapes array
+            setDrawnShapes(prev => prev.filter(({ shape }) => shape !== selectedDrawing));
+            setSelectedDrawing(null);
+        }
+    };
+
+    // Add keyboard listener for delete key
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if ((e.key === 'Delete' || e.key === 'Backspace') && selectedDrawing) {
+                handleDeleteSelected();
+            } else if (e.key === 'Escape') {
+                // Deselect on escape
+                if (selectedDrawing instanceof window.google.maps.Polygon) {
+                    selectedDrawing.setOptions({
+                        strokeWeight: defaultShapeOptions.strokeWeight,
+                        strokeColor: defaultShapeOptions.strokeColor
+                    });
+                }
+                setSelectedDrawing(null);
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [selectedDrawing]);
 
     const handleDrawingMode = (mode, type = null) => {
         if (!drawingManager) return;
@@ -615,13 +690,13 @@ const MapView = () => {
     // Auto-start animation effect
     useEffect(() => {
         let timer;
-        if (map && !isAnimatingRef.current && !hasAnimatedRef.current) {
+        if (map && !isAnimatingRef.current && !hasAnimatedGlobally) {
             timer = setTimeout(startAnimation, 2000);
         }
         return () => {
             if (timer) clearTimeout(timer);
         };
-    }, [map, startAnimation]);
+    }, [map, startAnimation, hasAnimatedGlobally]);
 
     const handleRefresh = useCallback(() => {
         if (!map || isAnimatingRef.current) return;
@@ -632,7 +707,6 @@ const MapView = () => {
     useEffect(() => {
         return () => {
             isAnimatingRef.current = false;
-            hasAnimatedRef.current = false;
             if (animationFrameRef.current) {
                 cancelAnimationFrame(animationFrameRef.current);
             }
@@ -700,7 +774,7 @@ const MapView = () => {
                         if (shape) {
                             // Add click listener
                             window.google.maps.event.addListener(shape, 'click', () => {
-                                setSelectedShape(shape);
+                                setSelectedDrawing(shape);
                                 setSelectedShapeDetails({
                                     id: shapeData.id,
                                     title: shapeData.name,
@@ -740,7 +814,7 @@ const MapView = () => {
         drawingManager.setDrawingMode(null);
         setActiveDrawingMode(null);
 
-        setSelectedShape(shape);
+        setSelectedDrawing(shape);
         setSelectedShapeDetails({
             title: '',
             description: '',
@@ -754,8 +828,8 @@ const MapView = () => {
             const shapeData = {
                 name: selectedShapeDetails.title,
                 description: selectedShapeDetails.description,
-                area_type: selectedShape instanceof window.google.maps.Marker ? 'POINT' : 'POLYGON',
-                coordinates: getShapeCoordinates(selectedShape)
+                area_type: selectedDrawing instanceof window.google.maps.Marker ? 'POINT' : 'POLYGON',
+                coordinates: getShapeCoordinates(selectedDrawing)
             };
 
             // Create FormData for image upload
@@ -789,7 +863,7 @@ const MapView = () => {
             const updatedShape = {
                 id: response.data.id,
                 type: shapeData.area_type,
-                shape: selectedShape,
+                shape: selectedDrawing,
                 details: {
                     title: response.data.name,
                     description: response.data.description,
@@ -798,7 +872,7 @@ const MapView = () => {
             };
 
             setDrawnShapes(prev => {
-                const filtered = prev.filter(s => s.shape !== selectedShape);
+                const filtered = prev.filter(s => s.shape !== selectedDrawing);
                 return [...filtered, updatedShape];
             });
 
@@ -828,6 +902,31 @@ const MapView = () => {
             images: [...prev.images, ...files]
         }));
     };
+
+    // Store map state when unmounting
+    useEffect(() => {
+        return () => {
+            if (map && !isAnimatingRef.current) {
+                try {
+                    const center = map.getCenter();
+                    if (center && typeof center.lat === 'function' && typeof center.lng === 'function') {
+                        const state = {
+                            center: {
+                                lat: center.lat(),
+                                lng: center.lng()
+                            },
+                            zoom: map.getZoom() || START_POSITION.zoom,
+                            tilt: map.getTilt() || START_POSITION.tilt,
+                            heading: map.getHeading() || START_POSITION.heading
+                        };
+                        localStorage.setItem('lastMapState', JSON.stringify(state));
+                    }
+                } catch (error) {
+                    console.error('Error saving map state:', error);
+                }
+            }
+        };
+    }, [map]);
 
     if (!isLoaded) {
         return (
@@ -886,6 +985,13 @@ const MapView = () => {
                             </StyledButton>
                         </DrawingSubmenu>
                     )}
+
+                    <StyledButton
+                        onClick={handleDeleteSelected}
+                        disabled={!selectedDrawing}
+                    >
+                        <DeleteIcon /> Delete Selected
+                    </StyledButton>
 
                     <StyledButton
                         onClick={clearDrawings}

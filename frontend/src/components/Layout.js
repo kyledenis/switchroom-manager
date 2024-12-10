@@ -84,6 +84,9 @@ const IconButton = styled.button`
 `;
 
 const Nav = styled.nav`
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
   gap: 4px;
   align-items: center;
@@ -130,19 +133,16 @@ const Layout = ({ children }) => {
     <Container>
       <Header>
         <HeaderLeft>
-          <IconButton>
-            <CloseIcon />
-          </IconButton>
           <Title>
             INFRABUILD <span>SWITCHROOM MANAGER</span>
           </Title>
         </HeaderLeft>
         <Nav>
           <NavLink to="/" active={location.pathname === '/' ? 1 : 0}>
-            MAP
+            <MapIcon /> MAP
           </NavLink>
           <NavLink to="/switchrooms" active={location.pathname === '/switchrooms' ? 1 : 0}>
-            LIST
+            <ListAltIcon /> LIST
           </NavLink>
         </Nav>
         <HeaderRight>
