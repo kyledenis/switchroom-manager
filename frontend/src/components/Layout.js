@@ -1,134 +1,164 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import {
-  AppBar,
-  Box,
-  Drawer,
-  IconButton,
-  List,
-  ListItem,
-  ListItemIcon,
-  ListItemText,
-  Toolbar,
-  Typography,
-} from '@mui/material';
-import {
-  Menu as MenuIcon,
-  Map as MapIcon,
-  List as ListIcon,
-} from '@mui/icons-material';
+import React from 'react';
+import { Link, useLocation } from 'react-router-dom';
+import styled from '@emotion/styled';
+import { useTheme } from '../contexts/ThemeContext';
+import MapIcon from '@mui/icons-material/Map';
+import ListAltIcon from '@mui/icons-material/ListAlt';
+import SettingsIcon from '@mui/icons-material/Settings';
+import CloseIcon from '@mui/icons-material/Close';
+import FilterListIcon from '@mui/icons-material/FilterList';
+import SearchIcon from '@mui/icons-material/Search';
 
-const drawerWidth = 240;
+const Container = styled.div`
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background-color: #1c1c1e;
+  color: #ffffff;
+`;
 
-function Layout({ children }) {
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const navigate = useNavigate();
+const Header = styled.header`
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  right: 16px;
+  height: 48px;
+  background: rgba(28, 28, 30, 0.8);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  z-index: 1000;
+  padding: 0 16px;
+`;
 
-  const handleDrawerToggle = () => {
-    setMobileOpen(!mobileOpen);
-  };
+const HeaderLeft = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+`;
 
-  const menuItems = [
-    { text: 'Map View', icon: <MapIcon />, path: '/' },
-    { text: 'Switchroom List', icon: <ListIcon />, path: '/switchrooms' },
-  ];
+const HeaderRight = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+`;
 
-  const drawer = (
-    <div>
-      <Toolbar />
-      <List>
-        {menuItems.map((item) => (
-          <ListItem
-            button
-            key={item.text}
-            onClick={() => {
-              navigate(item.path);
-              setMobileOpen(false);
-            }}
-          >
-            <ListItemIcon>{item.icon}</ListItemIcon>
-            <ListItemText primary={item.text} />
-          </ListItem>
-        ))}
-      </List>
-    </div>
-  );
+const Title = styled.div`
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  span {
+    color: rgba(255, 255, 255, 0.6);
+    font-weight: 500;
+  }
+`;
+
+const IconButton = styled.button`
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  svg {
+    font-size: 20px;
+  }
+`;
+
+const Nav = styled.nav`
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  height: 32px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 2px;
+`;
+
+const NavLink = styled(Link)`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  text-decoration: none;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  background: ${props => props.active ? 'rgba(255, 255, 255, 0.1)' : 'transparent'};
+
+  &:hover {
+    background: ${props => props.active ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.05)'};
+  }
+
+  svg {
+    font-size: 16px;
+    opacity: ${props => props.active ? 1 : 0.7};
+  }
+`;
+
+const Main = styled.main`
+  flex: 1;
+  margin-top: 80px;
+  position: relative;
+`;
+
+const Layout = ({ children }) => {
+  const location = useLocation();
+  const { isDarkMode } = useTheme();
 
   return (
-    <Box sx={{ display: 'flex' }}>
-      <AppBar
-        position="fixed"
-        sx={{
-          width: { sm: `calc(100% - ${drawerWidth}px)` },
-          ml: { sm: `${drawerWidth}px` },
-        }}
-      >
-        <Toolbar>
-          <IconButton
-            color="inherit"
-            edge="start"
-            onClick={handleDrawerToggle}
-            sx={{ mr: 2, display: { sm: 'none' } }}
-          >
-            <MenuIcon />
+    <Container>
+      <Header>
+        <HeaderLeft>
+          <IconButton>
+            <CloseIcon />
           </IconButton>
-          <Typography variant="h6" noWrap component="div">
-            Switchroom Manager
-          </Typography>
-        </Toolbar>
-      </AppBar>
-
-      <Box
-        component="nav"
-        sx={{ width: { sm: drawerWidth }, flexShrink: { sm: 0 } }}
-      >
-        <Drawer
-          variant="temporary"
-          open={mobileOpen}
-          onClose={handleDrawerToggle}
-          ModalProps={{
-            keepMounted: true,
-          }}
-          sx={{
-            display: { xs: 'block', sm: 'none' },
-            '& .MuiDrawer-paper': {
-              boxSizing: 'border-box',
-              width: drawerWidth,
-            },
-          }}
-        >
-          {drawer}
-        </Drawer>
-        <Drawer
-          variant="permanent"
-          sx={{
-            display: { xs: 'none', sm: 'block' },
-            '& .MuiDrawer-paper': {
-              boxSizing: 'border-box',
-              width: drawerWidth,
-            },
-          }}
-          open
-        >
-          {drawer}
-        </Drawer>
-      </Box>
-
-      <Box
-        component="main"
-        sx={{
-          flexGrow: 1,
-          p: 3,
-          width: { sm: `calc(100% - ${drawerWidth}px)` },
-          height: '100vh',
-          overflow: 'auto',
-        }}
-      >
-        <Toolbar />
+          <Title>
+            INFRABUILD <span>SWITCHROOM MANAGER</span>
+          </Title>
+        </HeaderLeft>
+        <Nav>
+          <NavLink to="/" active={location.pathname === '/' ? 1 : 0}>
+            MAP
+          </NavLink>
+          <NavLink to="/switchrooms" active={location.pathname === '/switchrooms' ? 1 : 0}>
+            LIST
+          </NavLink>
+        </Nav>
+        <HeaderRight>
+          <IconButton>
+            <SearchIcon />
+          </IconButton>
+          <IconButton>
+            <FilterListIcon />
+          </IconButton>
+        </HeaderRight>
+      </Header>
+      <Main>
         {children}
-      </Box>
-    </Box>
+      </Main>
+    </Container>
   );
-}
+};
 
 export default Layout;

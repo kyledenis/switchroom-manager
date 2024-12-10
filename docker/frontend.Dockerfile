@@ -2,11 +2,12 @@ FROM node:18-alpine
 
 WORKDIR /app
 
-COPY package*.json ./
+COPY frontend/package*.json ./
 
-RUN npm install
+RUN npm install && \
+    npm install @mui/material @emotion/react @emotion/styled @mui/icons-material @react-google-maps/api --save
 
-COPY . .
+COPY frontend/ .
 
 EXPOSE 3000
 
