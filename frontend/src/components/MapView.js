@@ -82,7 +82,8 @@ const MapContainer = styled.div`
 const ZoomControlPanel = styled.div`
     position: absolute;
     top: 20px;
-    right: 40px;
+    left: 50%;
+    transform: translateX(-50%);
     background: rgba(28, 28, 30, 0.8);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
@@ -121,9 +122,6 @@ const CoordinatesDisplay = styled.div`
     font-family: monospace;
     font-size: 13px;
     color: rgba(255, 255, 255, 0.8);
-    margin-top: 8px;
-    padding-top: 8px;
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
     position: relative;
 `;
 
@@ -185,6 +183,7 @@ const MapView = () => {
     const [displayState, setDisplayState] = useState(START_POSITION);
 
     const isAnimatingRef = useRef(false);
+    const hasAnimatedRef = useRef(false);
     const animationFrameRef = useRef(null);
     const cameraOptions = useRef({ ...START_POSITION });
     const updateTimeoutRef = useRef(null);
@@ -243,7 +242,6 @@ const MapView = () => {
                     heading: map.getHeading()
                 };
 
-                // Only update if values have changed
                 setDisplayState(prev => {
                     if (JSON.stringify(prev) !== JSON.stringify(newState)) {
                         return newState;
@@ -254,39 +252,18 @@ const MapView = () => {
         }, 100);
     }, [map]);
 
-    const onMainMapLoad = useCallback((mapInstance) => {
-        console.log('Map loaded');
-        setMap(mapInstance);
-
-        if (mapInstance) {
-            // Set initial position
-            mapInstance.moveCamera(START_POSITION);
-
-            // Clean up previous listeners
-            mapListenersRef.current.forEach(listener => listener.remove());
-            mapListenersRef.current = [];
-
-            // Add new listeners
-            const addListener = (event) => {
-                const listener = mapInstance.addListener(event, updateDisplayState);
-                mapListenersRef.current.push(listener);
-            };
-
-            ['idle', 'tilt_changed', 'heading_changed'].forEach(addListener);
-
-            // Initial state update
-            updateDisplayState();
-        }
-    }, [updateDisplayState]);
-
     const animate = useCallback((time) => {
         animationFrameRef.current = requestAnimationFrame(animate);
         update(time);
     }, []);
 
-    const handleAnimationClick = useCallback(() => {
-        if (!map || isAnimating) {
-            console.log('Animation blocked:', { map: !!map, isAnimating });
+    const startAnimation = useCallback(() => {
+        if (!map || isAnimatingRef.current || hasAnimatedRef.current) {
+            console.log('Animation blocked:', {
+                map: !!map,
+                isAnimating: isAnimatingRef.current,
+                hasAnimated: hasAnimatedRef.current
+            });
             return;
         }
 
@@ -342,6 +319,7 @@ const MapView = () => {
                 .onComplete(() => {
                     console.log('Animation complete');
                     isAnimatingRef.current = false;
+                    hasAnimatedRef.current = true;
                     setIsAnimating(false);
                     updateDisplayState();
                 });
@@ -363,6 +341,42 @@ const MapView = () => {
         }
     }, [map, isAnimating, animate, updateDisplayState]);
 
+    const onMainMapLoad = useCallback((mapInstance) => {
+        console.log('Map loaded');
+        setMap(mapInstance);
+
+        if (mapInstance) {
+            // Set initial position
+            mapInstance.moveCamera(START_POSITION);
+
+            // Clean up previous listeners
+            mapListenersRef.current.forEach(listener => listener.remove());
+            mapListenersRef.current = [];
+
+            // Add new listeners
+            const addListener = (event) => {
+                const listener = mapInstance.addListener(event, updateDisplayState);
+                mapListenersRef.current.push(listener);
+            };
+
+            ['idle', 'tilt_changed', 'heading_changed'].forEach(addListener);
+
+            // Initial state update
+            updateDisplayState();
+        }
+    }, [updateDisplayState]);
+
+    // Auto-start animation effect
+    useEffect(() => {
+        let timer;
+        if (map && !isAnimatingRef.current && !hasAnimatedRef.current) {
+            timer = setTimeout(startAnimation, 2000);
+        }
+        return () => {
+            if (timer) clearTimeout(timer);
+        };
+    }, [map, startAnimation]);
+
     const handleRefresh = useCallback(() => {
         if (!map || isAnimatingRef.current) return;
         updateDisplayState();
@@ -372,6 +386,7 @@ const MapView = () => {
     useEffect(() => {
         return () => {
             isAnimatingRef.current = false;
+            hasAnimatedRef.current = false;
             if (animationFrameRef.current) {
                 cancelAnimationFrame(animationFrameRef.current);
             }
@@ -407,13 +422,6 @@ const MapView = () => {
             </MapContainer>
 
             <ZoomControlPanel>
-                <Button
-                    onClick={handleAnimationClick}
-                    disabled={isAnimating}
-                >
-                    {isAnimating ? 'Animating...' : 'Start Animation'}
-                </Button>
-
                 <CoordinatesDisplay>
                     Lat: {displayState?.center?.lat?.toFixed(6) ?? '0.000000'}°
                     <br />
