@@ -5,16 +5,14 @@ import { useTheme } from '../contexts/ThemeContext';
 import MapIcon from '@mui/icons-material/Map';
 import ListAltIcon from '@mui/icons-material/ListAlt';
 import SettingsIcon from '@mui/icons-material/Settings';
-import CloseIcon from '@mui/icons-material/Close';
-import FilterListIcon from '@mui/icons-material/FilterList';
-import SearchIcon from '@mui/icons-material/Search';
+import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 
 const Container = styled.div`
   display: flex;
   flex-direction: column;
   min-height: 100vh;
-  background-color: #1c1c1e;
-  color: #ffffff;
+  background-color: ${props => props.theme === 'dark' ? '#1c1c1e' : '#ffffff'};
+  color: ${props => props.theme === 'dark' ? '#ffffff' : '#000000'};
 `;
 
 const Header = styled.header`
@@ -23,10 +21,10 @@ const Header = styled.header`
   left: 16px;
   right: 16px;
   height: 48px;
-  background: rgba(28, 28, 30, 0.8);
+  background: ${props => props.theme === 'dark' ? 'rgba(28, 28, 30, 0.8)' : 'rgba(255, 255, 255, 0.8)'};
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid ${props => props.theme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'};
   border-radius: 16px;
   display: flex;
   align-items: center;
@@ -50,13 +48,13 @@ const HeaderRight = styled.div`
 const Title = styled.div`
   font-size: 14px;
   font-weight: 600;
-  color: #ffffff;
+  color: ${props => props.theme === 'dark' ? '#ffffff' : '#000000'};
   display: flex;
   align-items: center;
   gap: 8px;
 
   span {
-    color: rgba(255, 255, 255, 0.6);
+    color: ${props => props.theme === 'dark' ? 'rgba(255, 255, 255, 0.6)' : 'rgba(0, 0, 0, 0.6)'};
     font-weight: 500;
   }
 `;
@@ -67,7 +65,7 @@ const IconButton = styled.button`
   border-radius: 8px;
   border: none;
   background: transparent;
-  color: #ffffff;
+  color: ${props => props.theme === 'dark' ? '#ffffff' : '#000000'};
   display: flex;
   align-items: center;
   justify-content: center;
@@ -75,11 +73,12 @@ const IconButton = styled.button`
   transition: all 0.2s ease;
 
   &:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background: ${props => props.theme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'};
   }
 
   svg {
     font-size: 20px;
+    opacity: 0.8;
   }
 `;
 
@@ -91,9 +90,11 @@ const Nav = styled.nav`
   gap: 4px;
   align-items: center;
   height: 32px;
-  background: rgba(255, 255, 255, 0.1);
+  background: ${props => props.theme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'};
   border-radius: 8px;
   padding: 2px;
+  min-width: 300px;
+  justify-content: space-between;
 `;
 
 const NavLink = styled(Link)`
@@ -102,15 +103,17 @@ const NavLink = styled(Link)`
   gap: 6px;
   padding: 6px 12px;
   text-decoration: none;
-  color: #ffffff;
+  color: ${props => props.theme === 'dark' ? '#ffffff' : '#000000'};
   font-size: 13px;
   font-weight: 500;
   border-radius: 6px;
   transition: all 0.2s ease;
-  background: ${props => props.active ? 'rgba(255, 255, 255, 0.1)' : 'transparent'};
+  background: ${props => props.active && props.theme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : props.active ? 'rgba(0, 0, 0, 0.1)' : 'transparent'};
+  flex: 1;
+  justify-content: center;
 
   &:hover {
-    background: ${props => props.active ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.05)'};
+    background: ${props => props.theme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'};
   }
 
   svg {
@@ -127,30 +130,30 @@ const Main = styled.main`
 
 const Layout = ({ children }) => {
   const location = useLocation();
-  const { isDarkMode } = useTheme();
+  const { theme } = useTheme();
 
   return (
-    <Container>
-      <Header>
+    <Container theme={theme}>
+      <Header theme={theme}>
         <HeaderLeft>
-          <Title>
+          <Title theme={theme}>
             INFRABUILD <span>SWITCHROOM MANAGER</span>
           </Title>
         </HeaderLeft>
-        <Nav>
-          <NavLink to="/" active={location.pathname === '/' ? 1 : 0}>
+        <Nav theme={theme}>
+          <NavLink to="/" active={location.pathname === '/' ? 1 : 0} theme={theme}>
             <MapIcon /> MAP
           </NavLink>
-          <NavLink to="/switchrooms" active={location.pathname === '/switchrooms' ? 1 : 0}>
+          <NavLink to="/switchrooms" active={location.pathname === '/switchrooms' ? 1 : 0} theme={theme}>
             <ListAltIcon /> LIST
+          </NavLink>
+          <NavLink to="/settings" active={location.pathname === '/settings' ? 1 : 0} theme={theme}>
+            <SettingsIcon /> SETTINGS
           </NavLink>
         </Nav>
         <HeaderRight>
-          <IconButton>
-            <SearchIcon />
-          </IconButton>
-          <IconButton>
-            <FilterListIcon />
+          <IconButton theme={theme}>
+            <AccountCircleIcon />
           </IconButton>
         </HeaderRight>
       </Header>
